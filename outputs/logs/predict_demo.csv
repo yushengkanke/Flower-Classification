@@ -1,0 +1,7 @@
+file,true_name,pred_name,confidence,correct
+image_05281.jpg,tree poppy,tree poppy,0.981,True
+image_04549.jpg,gazania,gazania,0.9993,True
+image_02403.jpg,sword lily,desert-rose,0.4,False
+image_02769.jpg,bishop of llandaff,bishop of llandaff,0.9333,True
+image_00293.jpg,water lily,azalea,0.5445,False
+image_08020.jpg,blackberry lily,blackberry lily,0.6715,True
