@@ -17,9 +17,9 @@ FIG_DIR = str(PROJECT_ROOT / "outputs/figures")
 
 def setup_chinese_font():
     plt.rcParams['font.sans-serif'] = [
-        "Microsoft YaHei",  # 微软雅黑，Win7+ 都有
-        "SimHei",  # 黑体，备选
-        "DejaVu Sans",  # 最后兜底，不支持中文但不至于报错
+        "Microsoft YaHei",
+        "SimHei",
+        "DejaVu Sans",
 
     ]
     plt.rcParams["axes.unicode_minus"] = False
