@@ -49,19 +49,31 @@ def run_inference(model,loader,device):
         torch.cat(all_probs).numpy(),
     )
 
-def plot_confusion(cm_norm,acc,save_dir = FIG_DIR):
-    save_dir.mkdir(parents=True,exist_ok=True)
+def plot_confusion(cm_norm, acc, save_dir=FIG_DIR, tick_step=10):
+
+    save_dir.mkdir(parents=True, exist_ok=True)
     setup_chinese_font()
 
-    fig,ax = plt.subplots(figsize=(11,9.5))
-    im = ax.imshow(cm_norm,cmap="Blues",vmin=0,vmax=1)
-    ax.set_xlabel("预测类别")
-    ax.set_ylabel("真实类别")
-    ax.set_title(f"测试集混淆矩阵（102 类）\n整体 Top-1 准确率 {acc:.4f}")
-    fig.colorbar(im, ax=ax, fraction=0.046, label="该类被判成预测类的比例")
+    n = cm_norm.shape[0]
+    fig, ax = plt.subplots(figsize=(13, 11))
+    im = ax.imshow(cm_norm, cmap="Blues", vmin=0, vmax=1)
+
+
+    ticks = list(range(0, n, tick_step))
+    ax.set_xticks(ticks)
+    ax.set_yticks(ticks)
+    ax.set_xticklabels([str(t) for t in ticks], fontsize=7, rotation=90)
+    ax.set_yticklabels([str(t) for t in ticks], fontsize=7)
+
+    ax.set_xlabel("预测类别编号 →（每格 = 该类被判成该列编号的比例）")
+    ax.set_ylabel("真实类别编号 ↓（每行加起来 = 1）")
+    ax.set_title(f"测试集混淆矩阵（102 类）  整体 Top-1 准确率 {acc:.4f}\n"
+                 f"对角线越白 = 该类认得越准；某行暗 = 该类学得差\n"
+                 f"花名对照见 outputs/logs/per_class_accuracy.csv 与'易混淆类别对'图")
+    fig.colorbar(im, ax=ax, fraction=0.046, label="占比")
     fig.tight_layout()
     path = save_dir / "confusion_matrix.png"
-    fig.savefig(path, dpi=130)
+    fig.savefig(path, dpi=140)
     plt.close(fig)
     return path
 def plot_per_class(per_class_acc,save_dir = FIG_DIR):
@@ -132,39 +144,114 @@ def plot_predictions(model, test_df, device, mean, std, img_size,
     plt.close(fig)
     return path, rec_df
 
+def plot_confusion_pairs(cm, names, top_k=25, save_dir=FIG_DIR):
+
+    save_dir.mkdir(parents=True, exist_ok=True)
+    setup_chinese_font()
+
+    n = cm.shape[0]
+
+    row_sum = np.maximum(cm.sum(axis=1, keepdims=True), 1)
+    cm_ratio = cm / row_sum
+
+
+    pairs = []
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            if cm[i, j] > 0:
+                pairs.append({
+                    "true_id": i,
+                    "true_name": names[i],
+                    "pred_id": j,
+                    "pred_name": names[j],
+                    "count": int(cm[i, j]),
+                    "ratio": float(cm_ratio[i, j]),
+                })
+
+    pairs_df = pd.DataFrame(pairs).sort_values("ratio", ascending=False)
+
+
+    csv_path = LOG_DIR / "confusion_pairs.csv"
+    pairs_df.to_csv(csv_path, index=False, encoding="utf-8")
+
+
+    top = pairs_df.head(top_k).iloc[::-1]
+    labels = [
+        f"{r.true_id:>3} {r.true_name[:22]}\n  → {r.pred_id:>3} {r.pred_name[:22]}"
+        for r in top.itertuples()
+    ]
+
+    fig, ax = plt.subplots(figsize=(11, max(6, top_k * 0.42)))
+    bars = ax.barh(range(len(top)), top["ratio"].values, color="#C44E52")
+    ax.set_yticks(range(len(top)))
+    ax.set_yticklabels(labels, fontsize=7)
+    ax.set_xlabel("误判比例（真实的该类中，有多大比例被判成了下面这一类）")
+    ax.set_title(f"最容易混淆的 {top_k} 组类别（真实 → 误判为）\n"
+                 f"编号对应混淆矩阵的坐标轴")
+
+    for b, r in zip(bars, top.itertuples()):
+        ax.text(b.get_width() + 0.003, b.get_y() + b.get_height() / 2,
+                f"{r.count}张", va="center", fontsize=7)
+    ax.set_xlim(0, min(1.0, top["ratio"].max() * 1.18))
+    fig.tight_layout()
+    path = save_dir / "confusion_pairs.png"
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+    return path, pairs_df, csv_path
+
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"设备: {device}")
+
 
     ckpt_path = OUT_DIR / "checkpoints" / "best.pt"
     if not ckpt_path.exists():
         print(f"[×] 找不到 {ckpt_path}，请先运行 python train.py")
         return
 
-
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    mean, std = ckpt["mean"], ckpt["std"]
-    img_size = ckpt["img_size"]
     num_classes = ckpt["num_classes"]
-    print(f"已加载 {ckpt_path}")
+    img_size = ckpt["img_size"]
+
+    mean, std = ckpt["mean"], ckpt["std"]
+
+    print(f"已加载 {ckpt_path.name}")
     print(f"  训练到第 {ckpt['epoch']} 轮，验证集最优 acc = {ckpt['best_val_acc']:.4f}")
     print(f"  归一化 mean={mean} std={std}  img_size={img_size}")
 
 
     test_df = pd.read_csv(OUT_DIR / "test.csv", encoding="utf-8")
+    train_df = pd.read_csv(OUT_DIR / "train.csv", encoding="utf-8")
+    meta_df = pd.read_csv(OUT_DIR / "metadata.csv", encoding="utf-8")
+
     _, eval_tf = build_transforms(img_size, mean, std)
     test_loader = DataLoader(
         FlowerDataset(test_df, eval_tf),
         batch_size=32, shuffle=False, num_workers=0,
         pin_memory=(device.type == "cuda"),
     )
-    print(f"测试集: {len(test_df)} 张")
+    print(f"测试集: {len(test_df)} 张，训练集: {len(train_df)} 张")
+
+
+    id2name = (
+        meta_df.drop_duplicates("label")
+        .set_index("label")["name"]
+        .to_dict()
+    )
+    names = [id2name[i] for i in range(num_classes)]
+
+
+    print("\n类别编号 -> 花名 映射抽样（确认没错位）:")
+    for i in [0, 1, 50, 101]:
+        print(f"  {i:>3} -> {names[i]}")
 
 
     model = build_resnet18(num_classes=num_classes).to(device)
     model.load_state_dict(ckpt["model_state"])
-    print(f"模型参数量: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"\n模型参数量: {sum(p.numel() for p in model.parameters()):,}")
 
 
     print("\n正在推理 ...")
@@ -176,31 +263,39 @@ def main():
     top5_acc = float((top5 == labels[:, None]).any(axis=1).mean())
 
     print("\n" + "=" * 62)
-    print(f"测试集 Top-1 准确率 : {top1:.4f}  ({top1*100:.2f}%)")
-    print(f"测试集 Top-5 准确率 : {top5_acc:.4f}  ({top5_acc*100:.2f}%)")
-    print(f"随机猜的基线        : {1/num_classes:.4f}  ({1/num_classes*100:.2f}%)")
-    print(f"相对基线提升        : {top1 / (1/num_classes):.1f} 倍")
+    print(f"测试集 Top-1 准确率 : {top1:.4f}  ({top1 * 100:.2f}%)")
+    print(f"测试集 Top-5 准确率 : {top5_acc:.4f}  ({top5_acc * 100:.2f}%)")
+    print(f"随机猜的基线        : {1 / num_classes:.4f}  ({1 / num_classes * 100:.2f}%)")
+    print(f"相对基线提升        : {top1 / (1 / num_classes):.1f} 倍")
     print(f"平均置信度          : {confs.mean():.4f}")
     print("=" * 62)
 
 
     cm = confusion_matrix(labels, preds, labels=list(range(num_classes)))
     per_class = cm.diagonal() / np.maximum(cm.sum(axis=1), 1)
-
+    cm_norm = cm / np.maximum(cm.sum(axis=1, keepdims=True), 1)
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    p1 = plot_confusion(cm / np.maximum(cm.sum(axis=1, keepdims=True), 1), top1)
-    print(f"\n混淆矩阵     -> {p1}")
+
+    p1 = plot_confusion(cm_norm, top1)
+    print(f"\n混淆矩阵       -> {p1}")
+
+
     p2 = plot_per_class(per_class)
-    print(f"每类准确率   -> {p2}")
+    print(f"每类准确率     -> {p2}")
+
+
+    p4, pairs_df, pairs_csv = plot_confusion_pairs(cm, names)
+    print(f"易混淆类别对   -> {p4}")
+    print(f"                 {pairs_csv}")
+
 
     p3, rec_df = plot_predictions(model, test_df, device, mean, std, img_size)
-    print(f"预测示例     -> {p3}")
+    print(f"预测示例       -> {p3}")
 
 
-    names = sorted(test_df["name"].unique())
     report = classification_report(
         labels, preds,
         labels=list(range(num_classes)),
@@ -209,34 +304,80 @@ def main():
     )
     report_path = LOG_DIR / "classification_report.txt"
     report_path.write_text(report, encoding="utf-8")
-    print(f"分类报告     -> {report_path}")
+    print(f"分类报告       -> {report_path}")
+
+
+    n_train_per_class = train_df.groupby("label").size()
+    detail = pd.DataFrame({
+        "label": list(range(num_classes)),
+        "name": names,
+        "test_accuracy": per_class.round(4),
+        "test_support": cm.sum(axis=1),
+        "train_count": [int(n_train_per_class.get(i, 0)) for i in range(num_classes)],
+    }).sort_values("test_accuracy")
+
+    detail_csv = LOG_DIR / "per_class_accuracy.csv"
+    detail.to_csv(detail_csv, index=False, encoding="utf-8")
+    print(f"每类明细       -> {detail_csv}")
 
 
     summary = {
-        "top1_acc": round(top1, 4),
-        "top5_acc": round(top5_acc, 4),
+        "top1_acc": round(float(top1), 4),
+        "top5_acc": round(float(top5_acc), 4),
         "random_baseline": round(1 / num_classes, 4),
-        "test_size": len(test_df),
+        "test_size": int(len(test_df)),
+        "train_size": int(len(train_df)),
         "mean_confidence": round(float(confs.mean()), 4),
         "num_classes_with_zero_acc": int((per_class == 0).sum()),
         "best_per_class_acc": round(float(per_class.max()), 4),
         "worst_per_class_acc": round(float(per_class.min()), 4),
     }
     summary_path = LOG_DIR / "eval_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
-                            encoding="utf-8")
-    print(f"汇总指标     -> {summary_path}")
-    print("\n" + json.dumps(summary, indent=2, ensure_ascii=False))
+    summary_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"汇总指标       -> {summary_path}")
 
 
-    print("\n最难认的 10 个类别:")
-    worst = np.argsort(per_class)[:10]
-    for c in worst:
-        cnt = cm[c].sum()
-        print(f"  {names[c][:28]:<30} 准确率 {per_class[c]:.2f}  (该测试集有 {cnt} 张)")
+    print("\n" + "=" * 62)
+    print("最难认的 10 个类别（带花名）:")
+    print("=" * 62)
+    for r in detail.head(10).itertuples():
+        print(f"  {r.label:>3}  {r.name[:30]:<32} "
+              f"准确率 {r.test_accuracy:.2f}   "
+              f"(测试 {r.test_support} 张, 训练 {r.train_count} 张)")
+
+    print("\n" + "=" * 62)
+    print("最容易混淆的 10 组类别（真实 -> 误判为）:")
+    print("=" * 62)
+    for r in pairs_df.head(10).itertuples():
+        print(f"  {r.true_id:>3} {r.true_name[:26]:<28} "
+              f"→ {r.pred_id:>3} {r.pred_name[:26]:<28} "
+              f"{r.count} 张 ({r.ratio:.2f})")
+
+
+    print("\n" + "=" * 62)
+    print("交叉分析：训练样本数 与 测试准确率 的关系")
+    print("=" * 62)
+    corr = detail["train_count"].corr(detail["test_accuracy"])
+    print(f"相关系数: {corr:.3f}   "
+          f"({'正相关，样本越多越准' if corr > 0.2 else '相关性弱' if abs(corr) <= 0.2 else '负相关'})")
+
+    detail["样本分组"] = pd.cut(
+        detail["train_count"],
+        bins=[0, 40, 60, 80, 300],
+        labels=["<40张", "40-60张", "60-80张", ">80张"],
+    )
+    grouped = detail.groupby("样本分组", observed=True)["test_accuracy"].agg(["mean", "count"])
+    print("\n按训练样本数分组看平均准确率:")
+    for idx, row in grouped.iterrows():
+        print(f"  {idx:<10} 平均准确率 {row['mean']:.3f}   类别数 {int(row['count'])}")
 
     print("\n第 6 步完成")
 
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()

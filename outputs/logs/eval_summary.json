@@ -3,6 +3,7 @@
   "top5_acc": 0.9447,
   "random_baseline": 0.0098,
   "test_size": 1229,
+  "train_size": 5731,
   "mean_confidence": 0.695,
   "num_classes_with_zero_acc": 1,
   "best_per_class_acc": 1.0,
