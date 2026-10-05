@@ -1,7 +1,7 @@
 import sys
 import torch
 import torch.nn as nn
-from residual import BasicBlock
+from src.models.residual import BasicBlock
 sys.stdout.reconfigure(encoding='utf-8')
 class ResNet(nn.Module):
     def __init__(self,block=BasicBlock,layers=(2,2,2,2),num_classes=102):
