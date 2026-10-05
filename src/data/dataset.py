@@ -28,7 +28,7 @@ def split_dataframe(df,val_ratio=0.15,test_ratio=0.15,seed=42):
     val_size = val_ratio/(1-test_ratio)
     train_df,val_df = train_test_split(
         train_val_df,
-        testsize = val_size,
+        test_size = val_size,
         stratify = train_val_df["label"],
         random_state=seed
     )
