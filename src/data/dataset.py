@@ -49,7 +49,7 @@ def build_transforms(img_size=224,mean=None,std=None):
         transforms.Normalize(mean,std),
     ])
     eval_tf = transforms.Compose([
-        transforms.Resize(img_size*1.14),
+        transforms.Resize(int(img_size*1.14)),
         transforms.CenterCrop(img_size),
         transforms.ToTensor(),
         transforms.Normalize(mean,std),
