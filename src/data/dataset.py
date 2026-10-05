@@ -104,7 +104,20 @@ def compute_stats(df,size=128,limit=1000,seed=42):
     mean = flat.mean(axis=0)
     std = flat.std(axis=0)
     return [round(float(v), 4) for v in mean], [round(float(v), 4) for v in std]
+def load_stats(default_mean=None, default_std=None):
+    stats_path = OUT_DIR / "stats.json"
+    if stats_path.exists():
+        import json
+        with open(stats_path, encoding="utf-8") as f:
+            s = json.load(f)
+        return s["mean"], s["std"]
 
+    print(f"[!] 没找到 {stats_path}，使用默认归一化参数")
+    print("    建议先运行: python src/data/dataset.py")
+    return (
+        default_mean or [0.4305, 0.3722, 0.282],
+        default_std or [0.2901, 0.2377, 0.2621],
+    )
 
 if __name__ == "__main__":
 
