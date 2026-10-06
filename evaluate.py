@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+import argparse
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -203,26 +204,71 @@ def plot_confusion_pairs(cm, names, top_k=25, save_dir=FIG_DIR):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="在测试集上评估模型")
+    ap.add_argument("--ckpt", type=str, default="best.pt",
+                    help="checkpoint 文件名。best.pt=手写模型；transfer_best.pt=迁移学习")
+    ap.add_argument("--model", type=str, default="auto",
+                    choices=["auto", "custom", "torchvision"],
+                    help="模型类型，auto 会从 checkpoint 的键名自动判断")
+    args = ap.parse_args()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"设备: {device}")
 
-
-    ckpt_path = OUT_DIR / "checkpoints" / "best.pt"
+    # ---------- 检查模型文件 ----------
+    ckpt_path = OUT_DIR / "checkpoints" / args.ckpt
     if not ckpt_path.exists():
-        print(f"[×] 找不到 {ckpt_path}，请先运行 python train.py")
+        print(f"[×] 找不到 {ckpt_path}，请先运行 python train.py 或 python transfer.py")
         return
 
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     num_classes = ckpt["num_classes"]
     img_size = ckpt["img_size"]
-
     mean, std = ckpt["mean"], ckpt["std"]
 
     print(f"已加载 {ckpt_path.name}")
     print(f"  训练到第 {ckpt['epoch']} 轮，验证集最优 acc = {ckpt['best_val_acc']:.4f}")
     print(f"  归一化 mean={mean} std={std}  img_size={img_size}")
 
+    # ---------- ★ 判断用哪个模型类来重建网络 ----------
+    # 手写 ResNet 的第一层叫 stem；torchvision 的叫 conv1。
+    # 所以看一眼 state_dict 的键名就知道是哪个实现。
+    state_keys = list(ckpt["model_state"].keys())
+    auto_is_custom = any(k.startswith("stem.") for k in state_keys)
 
+    if args.model == "auto":
+        use_custom = auto_is_custom
+    else:
+        use_custom = (args.model == "custom")
+
+    print(f"  模型类型: {'手写 ResNet (residual.py + resnet.py)' if use_custom else 'torchvision ResNet-18'}")
+
+    if use_custom:
+        model = build_resnet18(num_classes=num_classes).to(device)
+    else:
+        from torchvision.models import resnet18
+        model = resnet18(weights=None)               # 结构即可，权重马上会被覆盖
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+        model = model.to(device)
+
+    # ---------- 加载权重 ----------
+    # ★ 用 strict=False 更宽容，但要检查"真正缺失的是什么"
+    #   我们只允许 num_batches_tracked 这类缓冲区缺失，不允许卷积/BN 权重缺失
+    missing, unexpected = model.load_state_dict(ckpt["model_state"], strict=False)
+
+    real_missing = [k for k in missing if "num_batches_tracked" not in k]
+    if real_missing:
+        print(f"\n[×] 权重没有完全加载，缺失 {len(real_missing)} 个关键参数:")
+        for k in real_missing[:5]:
+            print(f"      {k}")
+        print("    说明 checkpoint 和模型结构不匹配，请检查 --model 参数")
+        return
+    if unexpected:
+        print(f"  [!] 有 {len(unexpected)} 个多余键（通常无害）: {unexpected[:3]}")
+
+    print(f"  权重加载完成（缺失 {len(missing)} 个缓冲区，已忽略）")
+
+    # ---------- 数据 ----------
     test_df = pd.read_csv(OUT_DIR / "test.csv", encoding="utf-8")
     train_df = pd.read_csv(OUT_DIR / "train.csv", encoding="utf-8")
     meta_df = pd.read_csv(OUT_DIR / "metadata.csv", encoding="utf-8")
@@ -235,31 +281,18 @@ def main():
     )
     print(f"测试集: {len(test_df)} 张，训练集: {len(train_df)} 张")
 
-
-    id2name = (
-        meta_df.drop_duplicates("label")
-        .set_index("label")["name"]
-        .to_dict()
-    )
+    # ---------- 类别编号 -> 花名 ----------
+    id2name = (meta_df.drop_duplicates("label")
+               .set_index("label")["name"].to_dict())
     names = [id2name[i] for i in range(num_classes)]
 
-
-    print("\n类别编号 -> 花名 映射抽样（确认没错位）:")
-    for i in [0, 1, 50, 101]:
-        print(f"  {i:>3} -> {names[i]}")
-
-
-    model = build_resnet18(num_classes=num_classes).to(device)
-    model.load_state_dict(ckpt["model_state"])
     print(f"\n模型参数量: {sum(p.numel() for p in model.parameters()):,}")
 
-
+    # ---------- 推理 ----------
     print("\n正在推理 ...")
     preds, labels, top5, confs = run_inference(model, test_loader, device)
 
-
     top1 = accuracy_score(labels, preds)
-
     top5_acc = float((top5 == labels[:, None]).any(axis=1).mean())
 
     print("\n" + "=" * 62)
@@ -270,7 +303,6 @@ def main():
     print(f"平均置信度          : {confs.mean():.4f}")
     print("=" * 62)
 
-
     cm = confusion_matrix(labels, preds, labels=list(range(num_classes)))
     per_class = cm.diagonal() / np.maximum(cm.sum(axis=1), 1)
     cm_norm = cm / np.maximum(cm.sum(axis=1, keepdims=True), 1)
@@ -278,34 +310,23 @@ def main():
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-
     p1 = plot_confusion(cm_norm, top1)
     print(f"\n混淆矩阵       -> {p1}")
-
-
     p2 = plot_per_class(per_class)
     print(f"每类准确率     -> {p2}")
-
-
     p4, pairs_df, pairs_csv = plot_confusion_pairs(cm, names)
     print(f"易混淆类别对   -> {p4}")
     print(f"                 {pairs_csv}")
-
-
     p3, rec_df = plot_predictions(model, test_df, device, mean, std, img_size)
     print(f"预测示例       -> {p3}")
 
-
     report = classification_report(
-        labels, preds,
-        labels=list(range(num_classes)),
-        target_names=names,
-        digits=3, zero_division=0,
+        labels, preds, labels=list(range(num_classes)),
+        target_names=names, digits=3, zero_division=0,
     )
-    report_path = LOG_DIR / "classification_report.txt"
+    report_path = LOG_DIR / f"classification_report_{ckpt_path.stem}.txt"
     report_path.write_text(report, encoding="utf-8")
     print(f"分类报告       -> {report_path}")
-
 
     n_train_per_class = train_df.groupby("label").size()
     detail = pd.DataFrame({
@@ -316,12 +337,13 @@ def main():
         "train_count": [int(n_train_per_class.get(i, 0)) for i in range(num_classes)],
     }).sort_values("test_accuracy")
 
-    detail_csv = LOG_DIR / "per_class_accuracy.csv"
+    detail_csv = LOG_DIR / f"per_class_accuracy_{ckpt_path.stem}.csv"
     detail.to_csv(detail_csv, index=False, encoding="utf-8")
     print(f"每类明细       -> {detail_csv}")
 
-
     summary = {
+        "checkpoint": ckpt_path.name,
+        "model_type": "custom" if use_custom else "torchvision",
         "top1_acc": round(float(top1), 4),
         "top5_acc": round(float(top5_acc), 4),
         "random_baseline": round(1 / num_classes, 4),
@@ -332,12 +354,10 @@ def main():
         "best_per_class_acc": round(float(per_class.max()), 4),
         "worst_per_class_acc": round(float(per_class.min()), 4),
     }
-    summary_path = LOG_DIR / "eval_summary.json"
-    summary_path.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    summary_path = LOG_DIR / f"eval_summary_{ckpt_path.stem}.json"
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
+                            encoding="utf-8")
     print(f"汇总指标       -> {summary_path}")
-
 
     print("\n" + "=" * 62)
     print("最难认的 10 个类别（带花名）:")
@@ -355,29 +375,8 @@ def main():
               f"→ {r.pred_id:>3} {r.pred_name[:26]:<28} "
               f"{r.count} 张 ({r.ratio:.2f})")
 
-
-    print("\n" + "=" * 62)
-    print("交叉分析：训练样本数 与 测试准确率 的关系")
-    print("=" * 62)
-    corr = detail["train_count"].corr(detail["test_accuracy"])
-    print(f"相关系数: {corr:.3f}   "
-          f"({'正相关，样本越多越准' if corr > 0.2 else '相关性弱' if abs(corr) <= 0.2 else '负相关'})")
-
-    detail["样本分组"] = pd.cut(
-        detail["train_count"],
-        bins=[0, 40, 60, 80, 300],
-        labels=["<40张", "40-60张", "60-80张", ">80张"],
-    )
-    grouped = detail.groupby("样本分组", observed=True)["test_accuracy"].agg(["mean", "count"])
-    print("\n按训练样本数分组看平均准确率:")
-    for idx, row in grouped.iterrows():
-        print(f"  {idx:<10} 平均准确率 {row['mean']:.3f}   类别数 {int(row['count'])}")
-
     print("\n第 6 步完成")
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
