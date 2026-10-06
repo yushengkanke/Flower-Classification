@@ -1,0 +1,108 @@
+                           precision    recall  f1-score   support
+
+            pink primrose      1.000     0.833     0.909         6
+hard-leaved pocket orchid      1.000     1.000     1.000         9
+         canterbury bells      0.857     1.000     0.923         6
+                sweet pea      0.875     0.875     0.875         8
+         english marigold      1.000     1.000     1.000        10
+               tiger lily      1.000     1.000     1.000         7
+              moon orchid      1.000     1.000     1.000         6
+         bird of paradise      0.812     1.000     0.897        13
+                monkshood      1.000     0.714     0.833         7
+            globe thistle      1.000     1.000     1.000         7
+               snapdragon      0.917     0.846     0.880        13
+              colt's foot      1.000     1.000     1.000        13
+              king protea      1.000     1.000     1.000         7
+            spear thistle      1.000     1.000     1.000         7
+              yellow iris      1.000     1.000     1.000         7
+             globe-flower      1.000     0.833     0.909         6
+        purple coneflower      1.000     1.000     1.000        13
+            peruvian lily      0.900     0.750     0.818        12
+           balloon flower      0.778     1.000     0.875         7
+    giant white arum lily      1.000     1.000     1.000         8
+                fire lily      0.857     1.000     0.923         6
+        pincushion flower      1.000     0.889     0.941         9
+               fritillary      0.929     0.929     0.929        14
+               red ginger      1.000     1.000     1.000         6
+           grape hyacinth      1.000     1.000     1.000         6
+               corn poppy      1.000     0.833     0.909         6
+ prince of wales feathers      1.000     0.833     0.909         6
+         stemless gentian      1.000     1.000     1.000        10
+                artichoke      1.000     1.000     1.000        12
+            sweet william      0.846     0.846     0.846        13
+                carnation      0.857     0.750     0.800         8
+             garden phlox      0.875     1.000     0.933         7
+         love in the mist      1.000     1.000     1.000         7
+            mexican aster      1.000     1.000     1.000         6
+         alpine sea holly      1.000     1.000     1.000         6
+     ruby-lipped cattleya      1.000     0.909     0.952        11
+              cape flower      1.000     1.000     1.000        16
+         great masterwort      0.889     1.000     0.941         8
+               siam tulip      1.000     1.000     1.000         6
+              lenten rose      1.000     0.900     0.947        10
+           barbeton daisy      1.000     0.947     0.973        19
+                 daffodil      1.000     1.000     1.000         9
+               sword lily      1.000     0.950     0.974        20
+               poinsettia      1.000     0.929     0.963        14
+         bolero deep blue      0.714     0.833     0.769         6
+               wallflower      1.000     1.000     1.000        29
+                 marigold      1.000     1.000     1.000        10
+                buttercup      0.917     1.000     0.957        11
+              oxeye daisy      1.000     1.000     1.000         7
+         common dandelion      1.000     1.000     1.000        14
+                  petunia      1.000     1.000     1.000        39
+               wild pansy      1.000     1.000     1.000        13
+                  primula      1.000     1.000     1.000        14
+                sunflower      1.000     1.000     1.000         9
+              pelargonium      0.917     1.000     0.957        11
+       bishop of llandaff      1.000     1.000     1.000        16
+                    gaura      1.000     1.000     1.000        10
+                 geranium      1.000     1.000     1.000        17
+            orange dahlia      1.000     1.000     1.000        10
+      pink-yellow dahlia?      1.000     1.000     1.000        16
+         cautleya spicata      1.000     1.000     1.000         8
+         japanese anemone      0.875     0.875     0.875         8
+         black-eyed susan      1.000     1.000     1.000         8
+               silverbush      1.000     1.000     1.000         8
+        californian poppy      1.000     1.000     1.000        15
+             osteospermum      0.900     1.000     0.947         9
+            spring crocus      1.000     1.000     1.000         6
+             bearded iris      1.000     1.000     1.000         8
+               windflower      0.889     1.000     0.941         8
+               tree poppy      1.000     1.000     1.000         9
+                  gazania      1.000     1.000     1.000        12
+                   azalea      1.000     0.929     0.963        14
+               water lily      1.000     1.000     1.000        29
+                     rose      0.880     0.846     0.863        26
+              thorn apple      1.000     0.944     0.971        18
+            morning glory      0.941     1.000     0.970        16
+           passion flower      1.000     1.000     1.000        38
+                    lotus      1.000     0.952     0.976        21
+                toad lily      1.000     1.000     1.000         6
+                anthurium      0.941     1.000     0.970        16
+               frangipani      1.000     1.000     1.000        25
+                 clematis      0.895     1.000     0.944        17
+                 hibiscus      1.000     0.950     0.974        20
+                columbine      1.000     0.923     0.960        13
+              desert-rose      1.000     0.900     0.947        10
+              tree mallow      1.000     1.000     1.000         9
+                 magnolia      1.000     1.000     1.000        10
+                 cyclamen      0.821     1.000     0.902        23
+               watercress      1.000     0.964     0.982        28
+               canna lily      0.909     0.833     0.870        12
+              hippeastrum      0.833     0.909     0.870        11
+                 bee balm      1.000     1.000     1.000        10
+                ball moss      0.778     1.000     0.875         7
+                 foxglove      1.000     0.917     0.957        24
+            bougainvillea      0.950     1.000     0.974        19
+                 camellia      0.917     0.786     0.846        14
+                   mallow      0.909     1.000     0.952        10
+          mexican petunia      1.000     0.917     0.957        12
+                 bromelia      1.000     0.900     0.947        10
+           blanket flower      1.000     1.000     1.000         7
+          trumpet creeper      0.750     1.000     0.857         9
+          blackberry lily      1.000     1.000     1.000         7
+
+                 accuracy                          0.963      1229
+                macro avg      0.962     0.960     0.959      1229
+             weighted avg      0.966     0.963     0.963      1229
