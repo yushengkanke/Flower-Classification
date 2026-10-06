@@ -1,14 +1,8 @@
-"""
-环境自检：确认 GPU 能用、依赖齐全、数据集就位。
-这个文件不参与建模，纯粹是"开工前检查工具"。
-"""
-
 import sys
 import platform
 import os
 
-# Windows 控制台默认是 GBK，打印中文和特殊符号（≥ →）会乱码或直接报错，
-# 这行把标准输出强制切成 UTF-8。放在文件最前面，越早越好。
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 
@@ -16,7 +10,7 @@ def check_python():
     print("【Python】")
     print(f"  版本       : {sys.version.split()[0]}")
     print(f"  解释器路径 : {sys.executable}")
-    # 强烈建议确认解释器在 envs 目录下，否则你可能装到了 base 环境
+
     if "envs" not in sys.executable and "venv" not in sys.executable:
         print("  [!] 警告：当前用的不是独立环境，建议切到 flower 环境")
 
@@ -37,7 +31,7 @@ def check_torch():
     print(f"  CUDA 编译版本  : {torch.version.cuda}")
 
     if not torch.cuda.is_available():
-        # 最常见的原因：装成了比驱动更新的 CUDA 版本
+
         print("  [×] CUDA 不可用")
         print("      最常见原因：PyTorch 的 CUDA 版本高于显卡驱动")
         print("      驱动 576.65 最高支持 CUDA 12.9，所以要装 cu128 而不是 cu132")
@@ -52,14 +46,13 @@ def check_torch():
     total = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
     print(f"  显存           : {total:.1f} GB")
 
-    # 光"检测到"不够，真跑一次矩阵乘法，确认 CUDA 真的能干活
-    # 这一步能把"驱动装了但运行时报错"的情况揪出来
+
     x = torch.randn(1024, 1024, device="cuda")
     y = x @ x
     print(f"  实测矩阵乘法   : OK (sum={y.sum().item():.1f})")
     print(f"  峰值显存占用   : {torch.cuda.max_memory_allocated() / 1024 ** 2:.1f} MB")
 
-    # 为后续训练准备的建议值
+
     if total >= 8:
         print("  → 建议 batch_size=32, img_size=224")
     else:
@@ -95,7 +88,7 @@ def check_dataset(root="data"):
         print(f"  {rel:<28} {len(filenames):>5} 个文件"
               + (f" (其中 {jpg_count} 张 jpg)" if jpg_count else ""))
 
-    # 关键检查：图片到底解压了没有
+
     jpg_dir = os.path.join(root, "flowers-102", "jpg")
     n = len([f for f in os.listdir(jpg_dir) if f.endswith(".jpg")]) if os.path.isdir(jpg_dir) else 0
     if n == 0:
